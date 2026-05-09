@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,21 +22,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.pixavault.app.ui.components.PermissionScreen
 import com.pixavault.app.ui.viewmodel.GalleryViewModel
-import java.io.File
+import android.graphics.BitmapFactory
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -173,18 +172,47 @@ fun PhotoItem(
     photoPath: String,
     onClick: () -> Unit
 ) {
-    AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
-            .data(File(photoPath))
-            .crossfade(true)
-            .build(),
-        contentDescription = "Photo",
-        contentScale = ContentScale.Crop,
+    val context = LocalContext.current
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    
+    LaunchedEffect(photoPath) {
+        try {
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = 4 // Scale down for performance
+            }
+            bitmap = BitmapFactory.decodeFile(photoPath, options)
+        } catch (e: Exception) {
+            // Handle error
+        }
+    }
+    
+    Box(
         modifier = Modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(4.dp))
+            .background(Color.LightGray)
             .clickable(onClick = onClick)
-    )
+    ) {
+        bitmap?.let { bmp ->
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = "Photo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } ?: run {
+            // Loading placeholder
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp
+                )
+            }
+        }
+    }
 }
 
 @Composable

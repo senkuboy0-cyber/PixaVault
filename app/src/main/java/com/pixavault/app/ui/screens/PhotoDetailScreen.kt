@@ -1,5 +1,6 @@
 package com.pixavault.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,15 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import java.io.File
+import android.graphics.BitmapFactory
 
 @Composable
 fun PhotoDetailDialog(
@@ -30,6 +28,15 @@ fun PhotoDetailDialog(
     onDismiss: () -> Unit
 ) {
     var isFavorite by remember { mutableStateOf(false) }
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    
+    LaunchedEffect(photoPath) {
+        try {
+            bitmap = BitmapFactory.decodeFile(photoPath)
+        } catch (e: Exception) {
+            // Handle error
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -44,17 +51,16 @@ fun PhotoDetailDialog(
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(File(photoPath))
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "Photo Detail",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            )
+            bitmap?.let { bmp ->
+                Image(
+                    bitmap = bmp.asImageBitmap(),
+                    contentDescription = "Photo Detail",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                )
+            }
 
             // Top Bar
             Row(
