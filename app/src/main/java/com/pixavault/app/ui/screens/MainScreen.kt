@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -28,8 +27,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -174,10 +175,12 @@ fun PhotoItem(
     onClick: () -> Unit
 ) {
     AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
-            .data(File(photoPath))
-            .crossfade(true)
-            .build(),
+        loader = {
+            coil3.request.ImageRequest.Builder(LocalContext.current)
+                .data(File(photoPath))
+                .crossfade(true)
+                .build()
+        },
         contentDescription = "Photo",
         contentScale = ContentScale.Crop,
         modifier = Modifier

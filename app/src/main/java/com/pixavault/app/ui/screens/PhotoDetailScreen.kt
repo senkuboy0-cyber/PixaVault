@@ -1,6 +1,5 @@
 package com.pixavault.app.ui.screens
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,8 +19,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import java.io.File
 
 @Composable
@@ -34,7 +34,9 @@ fun PhotoDetailDialog(
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
         )
     ) {
         Box(
@@ -43,10 +45,12 @@ fun PhotoDetailDialog(
                 .background(Color.Black)
         ) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(File(photoPath))
-                    .crossfade(true)
-                    .build(),
+                loader = {
+                    ImageRequest.Builder(LocalContext.current)
+                        .data(File(photoPath))
+                        .crossfade(true)
+                        .build()
+                },
                 contentDescription = "Photo Detail",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
