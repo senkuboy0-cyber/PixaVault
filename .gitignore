@@ -1,0 +1,14 @@
+app/build/outputs/apk/
+*.apk
+*.aab
+*.apks
+build/
+.gradle/
+.idea/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.keystore
+*.jks
