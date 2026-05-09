@@ -3,8 +3,9 @@
 📷 A modern Android Gallery Application built with Jetpack Compose
 
 ![Android](https://img.shields.io/badge/Android-8.0%2B-green)
-![Kotlin](https://img.shields.io/badge/Kotlin-1.9.20-purple)
-![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202023.10.01-blue)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-purple)
+![Compose BOM](https://img.shields.io/badge/Compose%20BOM-2026.04.00-blue)
+![AGP](https://img.shields.io/badge/AGP-9.2.0-orange)
 
 ## 🌟 Features
 
@@ -16,7 +17,7 @@
 - **Dark Mode** - Automatic dark/light theme support
 - **Smooth Animations** - Beautiful transitions and animations
 
-## 📸 Screenshots
+## 📱 Screenshots
 
 | Photos Tab | Photo Detail |
 |:----------:|:------------:|
@@ -26,13 +27,12 @@
 
 ### Prerequisites
 
-- Android Studio Hedgehog (2023.1.1) or later
-- JDK 17
-- Android SDK 34
-- Android device/emulator with API 24+
+- Android Studio Ladybug (2024.2.2) or later
+- JDK 21
+- Android SDK 35
+- Android device/emulator with API 26+
 
 ### Installation
-
 
 1. **Clone the repository**
    ```bash
@@ -52,22 +52,22 @@
    - Connect your Android device or start an emulator
    - Click "Run" (Shift + F10)
 
-
 ## 📦 Download APK
 
 Get the latest debug APK from [Releases](https://github.com/senkuboy0-cyber/PixaVault/releases)
 
 ## 🛠️ Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| Language | Kotlin |
-| UI | Jetpack Compose |
-| Design | Material 3 |
-| Architecture | MVVM |
-| Navigation | Navigation Compose |
-| Image Loading | Coil |
-| Permissions | Accompanist |
+| Category | Technology | Version |
+|----------|------------|---------|
+| Language | Kotlin | 2.0.21 |
+| UI | Jetpack Compose | BOM 2026.04.00 |
+| Design | Material 3 | Latest |
+| Architecture | MVVM | - |
+| Navigation | Navigation Compose | 2.8.5 |
+| Image Loading | Coil | 3.0.4 |
+| Build Tool | AGP | 9.2.0 |
+| Build Tool | Gradle | 9.1.0 |
 
 ## 📂 Project Structure
 
@@ -93,7 +93,6 @@ Contributions are welcome! Feel free to submit issues and pull requests.
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 
 ---
 

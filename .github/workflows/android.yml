@@ -6,89 +6,106 @@ on:
   pull_request:
     branches: [ "main" ]
   release:
-    types: [created]
+    types: [published]
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_VERSION: '9.1.0'
 
 jobs:
   build-debug-apk:
+    name: Build Debug APK
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
 
       - name: Setup Gradle
         run: |
-          gradle wrapper --gradle-version 8.2
+          if [ ! -f "./gradlew" ]; then
+            gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
+          fi
+
+      - name: Generate Gradle Wrapper
+        run: |
+          gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
       - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK to Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: app/build/outputs/apk/debug/*.apk
-          name: PixaVault v${{ github.ref_name }} (Debug APK)
-          body: |
-            🎉 **PixaVault Debug APK**
-            
-            Built from: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            
-            📥 Download the APK and install on your Android device!
-          prerelease: true
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify APK exists
+        run: |
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            echo "✅ APK built successfully!"
+            ls -lh app/build/outputs/apk/debug/app-debug.apk
+          else
+            echo "❌ APK not found!"
+            exit 1
+          fi
 
       - name: Upload Debug APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PixaVault-debug-apk
+          name: PixaVault-debug-apk-v${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Create Release on Tag
-        if: startsWith(github.ref, 'refs/tags/') && !github.event.release
-        run: |
-          curl -L \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @"app/build/outputs/apk/debug/app-debug.apk" \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ github.event.id }}/assets?name=app-debug.apk"
-
-  build-release-apk:
+  create-release:
     needs: build-debug-apk
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Download APK from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: PixaVault-debug-apk-v${{ needs.build-debug-apk.outputs.run_number }}
+          path: ./apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./apk/*.apk
+          generate_release_notes: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-release-apk:
+    needs: build-debug-apk
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Setup Gradle
-        run: |
-          gradle wrapper --gradle-version 8.2
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Grant execute permission
+        run: chmod +x ./gradlew
 
       - name: Build Release APK
         run: ./gradlew assembleRelease --no-daemon
@@ -98,14 +115,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-  notify:
-    needs: build-debug-apk
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-      - name: Success Notification
-        run: |
-          echo "🎉 PixaVault APK Build Complete!"
-          echo "📦 Artifact: PixaVault-debug-apk"
-          echo "🔗 Repository: ${{ github.repository }}"
+      - name: Upload Release APK to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
