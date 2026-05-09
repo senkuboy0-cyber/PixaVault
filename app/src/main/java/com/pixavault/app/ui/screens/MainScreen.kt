@@ -117,10 +117,13 @@ fun MainScreen() {
                 )
             } else {
                 when (selectedTab) {
-                    0 -> PhotoGrid(
-                        photos = viewModel.photos,
-                        onPhotoClick = { selectedPhoto = it }
-                    )
+                    0 -> {
+                        val photosList by viewModel.photos.collectAsState()
+                        PhotoGrid(
+                            photos = photosList,
+                            onPhotoClick = { selectedPhoto = it }
+                        )
+                    }
                     1 -> AlbumsTab()
                     2 -> FavoritesTab()
                 }
@@ -172,7 +175,6 @@ fun PhotoItem(
     photoPath: String,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
     var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     
     LaunchedEffect(photoPath) {
@@ -201,7 +203,6 @@ fun PhotoItem(
                 modifier = Modifier.fillMaxSize()
             )
         } ?: run {
-            // Loading placeholder
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
