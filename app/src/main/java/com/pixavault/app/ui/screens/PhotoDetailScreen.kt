@@ -45,12 +45,10 @@ fun PhotoDetailDialog(
                 .background(Color.Black)
         ) {
             AsyncImage(
-                loader = {
-                    ImageRequest.Builder(LocalContext.current)
-                        .data(File(photoPath))
-                        .crossfade(true)
-                        .build()
-                },
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(File(photoPath))
+                    .crossfade(true)
+                    .build(),
                 contentDescription = "Photo Detail",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier

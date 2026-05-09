@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -175,12 +174,10 @@ fun PhotoItem(
     onClick: () -> Unit
 ) {
     AsyncImage(
-        loader = {
-            coil3.request.ImageRequest.Builder(LocalContext.current)
-                .data(File(photoPath))
-                .crossfade(true)
-                .build()
-        },
+        model = ImageRequest.Builder(LocalContext.current)
+            .data(File(photoPath))
+            .crossfade(true)
+            .build(),
         contentDescription = "Photo",
         contentScale = ContentScale.Crop,
         modifier = Modifier
