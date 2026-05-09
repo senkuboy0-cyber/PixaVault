@@ -1,4 +1,4 @@
-name: Android CI/CD
+name: Android CI/CD - Build & Release APK
 
 on:
   push:
@@ -11,114 +11,210 @@ on:
 env:
   JAVA_VERSION: '21'
   GRADLE_VERSION: '9.1.0'
+  APP_NAME: 'PixaVault'
+  APP_ID: 'com.pixavault.app'
 
 jobs:
   build-debug-apk:
-    name: Build Debug APK
+    name: 🏗️ Build Debug APK
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      # 1️⃣ Checkout code
+      - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java ${{ env.JAVA_VERSION }}
+      # 2️⃣ Setup Java 21
+      - name: ☕ Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Setup Gradle
+      # 3️⃣ Download Gradle Wrapper JAR (auto-download if not exists)
+      - name: 📦 Download Gradle Wrapper
         run: |
-          if [ ! -f "./gradlew" ]; then
-            gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
+          mkdir -p gradle/wrapper
+          
+          # Download gradle-wrapper.jar from official source
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "⬇️ Downloading Gradle Wrapper JAR..."
+            curl -sL "https://raw.githubusercontent.com/gradle/gradle/v${{ env.GRADLE_VERSION }}/gradle/wrapper/gradle-wrapper.jar" \
+              -o gradle/wrapper/gradle-wrapper.jar
+            
+            # Fallback to github releases if above fails
+            if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ] || [ ! -s "gradle/wrapper/gradle-wrapper.jar" ]; then
+              curl -sL "https://github.com/gradle/gradle/raw/v${{ env.GRADLE_VERSION }}/gradle/wrapper/gradle-wrapper.jar" \
+                -o gradle/wrapper/gradle-wrapper.jar
+            fi
           fi
+          
+          ls -la gradle/wrapper/
 
-      - name: Generate Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
-
-      - name: Grant execute permission for gradlew
+      # 4️⃣ Make gradlew executable
+      - name: 🔓 Make Gradle Wrapper Executable
         run: chmod +x ./gradlew
 
-      - name: Build Debug APK
+      # 5️⃣ Verify Gradle Setup
+      - name: ✅ Verify Gradle Setup
+        run: |
+          ./gradlew --version
+
+      # 6️⃣ Build Debug APK
+      - name: 🔨 Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Verify APK exists
+      # 7️⃣ Verify APK Exists
+      - name: 🔍 Verify APK Build
         run: |
           if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-            echo "✅ APK built successfully!"
+            echo "✅ APK Build Successful!"
             ls -lh app/build/outputs/apk/debug/app-debug.apk
+            echo ""
+            echo "APK Size: $(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)"
           else
-            echo "❌ APK not found!"
+            echo "❌ APK Build Failed!"
+            echo "Available files:"
+            find app/build -name "*.apk" 2>/dev/null || echo "No APK found"
             exit 1
           fi
 
-      - name: Upload Debug APK as Artifact
+      # 8️⃣ Upload APK as Artifact
+      - name: 📤 Upload Debug APK as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PixaVault-debug-apk-v${{ github.run_number }}
+          name: ${{ env.APP_NAME }}-debug-apk-v${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          compression-level: 9
 
-  create-release:
+  # ═══════════════════════════════════════════════════════════════════
+  # JOB 2: Create GitHub Release (Only on Tag Push)
+  # ═══════════════════════════════════════════════════════════════════
+  create-github-release:
     needs: build-debug-apk
+    name: 🚀 Create GitHub Release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    permissions:
+      contents: write
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download APK from build job
+      - name: 📥 Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: PixaVault-debug-apk-v${{ needs.build-debug-apk.outputs.run_number }}
-          path: ./apk
+          name: ${{ env.APP_NAME }}-debug-apk-v${{ needs.build-debug-apk.outputs.run_number }}
+          path: ./release
 
-      - name: Create GitHub Release
+      - name: 🏷️ Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ./apk/*.apk
-          generate_release_notes: true
+          files: |
+            release/*.apk
+          name: ${{ env.APP_NAME }} v${{ github.ref_name }}
+          body: |
+            # 🎉 ${{ env.APP_NAME }} v${{ github.ref_name }} Released!
+            
+            ## 📦 What's New
+            - Latest stable release
+            - Debug APK for testing
+            
+            ## 📥 Download
+            Download the `app-debug.apk` file and install on your Android device.
+            
+            ## ℹ️ Build Info
+            - **App ID**: ${{ env.APP_ID }}
+            - **Version**: ${{ github.ref_name }}
+            - **Build**: #${{ github.run_number }}
+            - **Commit**: `${{ github.sha }}`
+            
+            ---
+            Made with ❤️ using Jetpack Compose
+          draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-release-apk:
+      - name: ✉️ Success Notification
+        run: |
+          echo "🎉 Release Created Successfully!"
+          echo "📦 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # JOB 3: Upload to GitHub Release (Alternative Method)
+  # ═══════════════════════════════════════════════════════════════════
+  upload-to-release:
     needs: build-debug-apk
+    name: 📤 Upload to GitHub Release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    permissions:
+      contents: write
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: 📥 Download Artifact
+        uses: actions/download-artifact@v4
         with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: 'gradle'
+          name: ${{ env.APP_NAME }}-debug-apk-v${{ needs.build-debug-apk.outputs.run_number }}
+          path: ./apk
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version=${{ env.GRADLE_VERSION }}
+      - name: 🚀 Upload to Release
+        run: |
+          # Get release ID
+          RELEASE_ID=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" | \
+            grep '"id"' | head -1 | tr -d ' "id:,')
+          
+          echo "📦 Release ID: $RELEASE_ID"
+          
+          # Upload APK
+          APK_FILE=$(ls ./apk/*.apk | head -1)
+          echo "📤 Uploading: $APK_FILE"
+          
+          curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary "@$APK_FILE" \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$(basename $APK_FILE)"
+          
+          echo ""
+          echo "✅ APK uploaded to release!"
 
-      - name: Grant execute permission
-        run: chmod +x ./gradlew
-
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
-        env:
-          KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Upload Release APK to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/release/*.apk
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # ═══════════════════════════════════════════════════════════════════
+  # JOB 4: Summary
+  # ═══════════════════════════════════════════════════════════════════
+  build-summary:
+    name: 📊 Build Summary
+    needs: build-debug-apk
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: 📋 Build Summary
+        run: |
+          echo "# 📊 PixaVault Build Summary"
+          echo ""
+          echo "| Info | Value |"
+          echo "|------|-------|"
+          echo "| Repository | ${{ github.repository }} |"
+          echo "| Branch | ${{ github.ref_name }} |"
+          echo "| Commit | ${{ github.sha }} |"
+          echo "| Run | #${{ github.run_number }} |"
+          echo "| Status | ${{ needs.build-debug-apk.result }} |"
+          echo ""
+          
+          if [ "${{ needs.build-debug-apk.result }}" == "success" ]; then
+            echo "✅ **Build Status: SUCCESS**"
+            echo ""
+            echo "📥 **Download APK from:**"
+            echo "   - Go to **Actions** tab"
+            echo "   - Select the latest workflow run"
+            echo "   - Download artifact: PixaVault-debug-apk"
+          else
+            echo "❌ **Build Status: FAILED**"
+            echo ""
+            echo "🔍 **Troubleshooting:**"
+            echo "   - Check the workflow logs"
+            echo "   - Verify all dependencies are correct"
+          fi
