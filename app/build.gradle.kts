@@ -77,7 +77,13 @@ dependencies {
     
     // Accompanist Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.37.3")
-
+    
+    // Coil for image loading (better performance than BitmapFactory)
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    
+    // Palette for color extraction
+    implementation("androidx.palette:palette:1.0.0")
+    
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
