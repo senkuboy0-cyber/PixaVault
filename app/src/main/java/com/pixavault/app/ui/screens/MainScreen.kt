@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -357,7 +359,7 @@ fun PhotoList(
     viewModel: GalleryViewModel
 ) {
     LazyColumn {
-        items(photos, key = { it.id }) { photo ->
+        lazyItems(photos, key = { it.id }) { photo ->
             PhotoListItem(
                 photo = photo,
                 onClick = { onPhotoClick(photo) },
