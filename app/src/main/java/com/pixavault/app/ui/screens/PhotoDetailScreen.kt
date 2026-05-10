@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixavault.app.ui.viewmodel.GalleryViewModel
 import com.pixavault.app.ui.viewmodel.PhotoItem
 import android.graphics.BitmapFactory
@@ -39,6 +40,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +91,9 @@ fun PhotoDetailDialog(
     
     // Watch for favorites changes
     LaunchedEffect(photo.id) {
-        snapshotFlow { viewModel.isFavorite(photo.id) }.collect { isFavorite = it }
+        viewModel.favorites.distinctUntilChanged().collect {
+            isFavorite = viewModel.isFavorite(photo.id)
+        }
     }
     
     Dialog(
