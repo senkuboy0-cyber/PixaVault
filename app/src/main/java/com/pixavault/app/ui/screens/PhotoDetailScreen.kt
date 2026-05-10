@@ -54,7 +54,7 @@ fun PhotoDetailDialog(
     var dominantColor by remember { mutableStateOf(Color.Black) }
     var scale by remember { mutableStateOf(1f) }
     var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f)
+    var offsetY by remember { mutableStateOf(0f) }
     
     val shareLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
