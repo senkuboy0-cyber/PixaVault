@@ -258,12 +258,14 @@ fun MainScreen() {
         if (isLoadingMore && gridState.firstVisibleItemIndex > 0) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-                    .align(Alignment.BottomCenter)
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.BottomCenter
             ) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(16.dp),
                     strokeWidth = 2.dp
                 )
             }
@@ -840,7 +842,7 @@ fun FavoritesTab(
     }
 }
 
-fun formatFileSize(bytes: Long): String {
+private fun formatFileSize(bytes: Long): String {
     val kb = bytes / 1024.0
     val mb = kb / 1024.0
     val gb = mb / 1024.0

@@ -2,7 +2,6 @@ package com.pixavault.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.ManActivityResultCallbacks
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -40,7 +39,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,7 +89,7 @@ fun PhotoDetailDialog(
     
     // Watch for favorites changes
     LaunchedEffect(photo.id) {
-        viewModel.favorites.distinctUntilChanged().collect {
+        viewModel.favorites.collect {
             isFavorite = viewModel.isFavorite(photo.id)
         }
     }
