@@ -1,71 +1,36 @@
 package com.pixavault.app.ui.viewmodel
 
+import android.app.Application
 import android.content.Context
-import android.net.Uri
-import android.provider.MediaStore
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
+import com.pixavault.app.data.repository.GalleryRepository
+import com.pixavault.app.domain.model.FilterOptions
+import com.pixavault.app.domain.model.MediaItem
+import com.pixavault.app.domain.model.SortOption
+import com.pixavault.app.domain.model.ViewMode
+import com.pixavault.app.domain.model.UiState
+import com.pixavault.app.domain.model.MediaType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-data class PhotoItem(
-    val id: Long,
-    val path: String,
-    val uri: Uri,
-    val dateAdded: Long,
-    val displayName: String = "",
-    val size: Long = 0L,
-    val width: Int = 0,
-    val height: Int = 0
-)
-
-sealed class LoadingState {
-    object Idle : LoadingState()
-    object Loading : LoadingState()
-    data class Success(val count: Int) : LoadingState()
-    data class Error(val message: String) : LoadingState()
-}
-
-enum class SortOption {
-    DATE_DESC, DATE_ASC, NAME_ASC, NAME_DESC, SIZE_DESC, SIZE_ASC
-}
-
-enum class ViewMode {
-    GRID, LIST
-}
-
-data class FilterOptions(
-    val favoritesOnly: Boolean = false,
-    val minSize: Long = 0,
-    val dateRange: Pair<Long, Long>? = null
-)
-
-class GalleryViewModel : ViewModel() {
+class GalleryViewModel(application: Application) : AndroidViewModel(application) {
     
-    private val _photos = MutableStateFlow<List<PhotoItem>>(emptyList())
-    val photos: StateFlow<List<PhotoItem>> = _photos.asStateFlow()
+    private val repository = GalleryRepository(application)
     
-    private val _filteredPhotos = MutableStateFlow<List<PhotoItem>>(emptyList())
-    val filteredPhotos: StateFlow<List<PhotoItem>> = _filteredPhotos.asStateFlow()
+    private val _uiState = MutableStateFlow<UiState<List<MediaItem>>>(UiState.Idle)
+    val uiState: StateFlow<UiState<List<MediaItem>>> = _uiState.asStateFlow()
     
-    private val _loadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val loadingState: StateFlow<LoadingState> = _loadingState.asStateFlow()
+    private val _allMedia = MutableStateFlow<List<MediaItem>>(emptyList())
+    val allMedia: StateFlow<List<MediaItem>> = _allMedia.asStateFlow()
     
-    private val _selectedPhotos = MutableStateFlow<Set<Long>>(emptySet())
-    val selectedPhotos: StateFlow<Set<Long>> = _selectedPhotos.asStateFlow()
+    private val _filteredMedia = MutableStateFlow<List<MediaItem>>(emptyList())
+    val filteredMedia: StateFlow<List<MediaItem>> = _filteredMedia.asStateFlow()
     
-    private val _favorites = MutableStateFlow<Set<Long>>(emptySet())
-    val favorites: StateFlow<Set<Long>> = _favorites.asStateFlow()
-    
-    private val _sortOption = MutableStateFlow(SortOption.DATE_DESC)
-    val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
-    
-    private val _viewMode = MutableStateFlow(ViewMode.GRID)
-    val viewMode: StateFlow<ViewMode> = _viewMode.asStateFlow()
+    private val _selectedMedia = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedMedia: StateFlow<Set<Long>> = _selectedMedia.asStateFlow()
     
     private val _filterOptions = MutableStateFlow(FilterOptions())
     val filterOptions: StateFlow<FilterOptions> = _filterOptions.asStateFlow()
@@ -76,185 +41,132 @@ class GalleryViewModel : ViewModel() {
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
     
-    private var lastLoadedPhotoIndex = 0
-    private val batchSize = 50
+    private val _isSelectionMode = MutableStateFlow(false)
+    val isSelectionMode: StateFlow<Boolean> = _isSelectionMode.asStateFlow()
+    
+    private var currentPage = 0
+    private val itemsPerPage = 100
     
     init {
-        // Apply filters and sorting whenever relevant data changes
+        observeDataChanges()
+    }
+    
+    private fun observeDataChanges() {
         viewModelScope.launch {
-            photos.collect {
-                applyFiltersAndSort()
+            repository.allMedia.collect { media ->
+                _allMedia.value = media
+                applyFilters()
             }
         }
         
         viewModelScope.launch {
-            favorites.collect {
-                applyFiltersAndSort()
+            repository.favorites.collect { 
+                applyFilters()
             }
         }
         
         viewModelScope.launch {
-            sortOption.collect {
-                applyFiltersAndSort()
+            _filterOptions.collect {
+                applyFilters()
             }
         }
         
         viewModelScope.launch {
-            filterOptions.collect {
-                applyFiltersAndSort()
-            }
-        }
-        
-        viewModelScope.launch {
-            searchQuery.collect {
-                applyFiltersAndSort()
+            _searchQuery.collect {
+                applyFilters()
             }
         }
     }
     
-    fun loadPhotos(context: Context, loadMore: Boolean = false) {
+    fun loadMedia(includeVideos: Boolean = true) {
         viewModelScope.launch {
-            if (loadMore) {
-                _isLoadingMore.value = true
-            } else {
-                _loadingState.value = LoadingState.Loading
-                lastLoadedPhotoIndex = 0
-            }
+            _uiState.value = UiState.Loading
             
             try {
-                val photoList = withContext(Dispatchers.IO) {
-                    queryPhotos(context, loadMore)
-                }
-                
-                if (loadMore) {
-                    _photos.value = _photos.value + photoList
-                    _isLoadingMore.value = false
-                } else {
-                    _photos.value = photoList
-                    _loadingState.value = LoadingState.Success(photoList.size)
-                }
-                
-                lastLoadedPhotoIndex += photoList.size
-            } catch (e: Exception) {
-                if (loadMore) {
-                    _isLoadingMore.value = false
-                } else {
-                    _loadingState.value = LoadingState.Error(e.message ?: "Unknown error")
-                }
-            }
-        }
-    }
-    
-    private fun queryPhotos(context: Context, loadMore: Boolean = false): List<PhotoItem> {
-        val photoList = mutableListOf<PhotoItem>()
-        
-        val projection = arrayOf(
-            MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.DATA,
-            MediaStore.Images.Media.DATE_ADDED,
-            MediaStore.Images.Media.DISPLAY_NAME,
-            MediaStore.Images.Media.SIZE,
-            MediaStore.Images.Media.WIDTH,
-            MediaStore.Images.Media.HEIGHT
-        )
-        
-        val sortOrder = when (_sortOption.value) {
-            SortOption.DATE_DESC -> "${MediaStore.Images.Media.DATE_ADDED} DESC"
-            SortOption.DATE_ASC -> "${MediaStore.Images.Media.DATE_ADDED} ASC"
-            SortOption.NAME_ASC -> "${MediaStore.Images.Media.DISPLAY_NAME} ASC"
-            SortOption.NAME_DESC -> "${MediaStore.Images.Media.DISPLAY_NAME} DESC"
-            SortOption.SIZE_DESC -> "${MediaStore.Images.Media.SIZE} DESC"
-            SortOption.SIZE_ASC -> "${MediaStore.Images.Media.SIZE} ASC"
-        }
-        
-        context.contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            sortOrder
-        )?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
-            val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
-            val displayNameColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
-            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE)
-            val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH)
-            val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT)
-            
-            val startIndex = if (loadMore) lastLoadedPhotoIndex else 0
-            var currentIndex = 0
-            var itemsAdded = 0
-            
-            // Move cursor to start position
-            if (startIndex > 0 && cursor.moveToPosition(startIndex)) {
-                currentIndex = startIndex
-            }
-            
-            while (cursor.moveToNext() && itemsAdded < batchSize) {
-                val id = cursor.getLong(idColumn)
-                val path = cursor.getString(dataColumn)
-                val dateAdded = cursor.getLong(dateColumn)
-                val displayName = cursor.getString(displayNameColumn) ?: ""
-                val size = cursor.getLong(sizeColumn)
-                val width = cursor.getInt(widthColumn)
-                val height = cursor.getInt(heightColumn)
-                val uri = android.content.ContentUris.withAppendedId(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                    id
+                currentPage = 0
+                val media = repository.loadMedia(
+                    limit = itemsPerPage,
+                    offset = 0,
+                    includeVideos = includeVideos
                 )
                 
-                // Filter out very small or corrupted images
-                if (size > 1024) { // At least 1KB
-                    photoList.add(
-                        PhotoItem(
-                            id = id,
-                            path = path,
-                            uri = uri,
-                            dateAdded = dateAdded,
-                            displayName = displayName,
-                            size = size,
-                            width = width,
-                            height = height
-                        )
-                    )
-                    itemsAdded++
-                }
+                _uiState.value = UiState.Success(media)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+    
+    fun loadMoreMedia(includeVideos: Boolean = true) {
+        if (_isLoadingMore.value) return
+        
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            
+            try {
+                currentPage++
+                val newMedia = repository.loadMedia(
+                    limit = itemsPerPage,
+                    offset = currentPage * itemsPerPage,
+                    includeVideos = includeVideos
+                )
                 
-                currentIndex++
+                if (newMedia.isEmpty()) {
+                    _isLoadingMore.value = false
+                    return@launch
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isLoadingMore.value = false
+            }
+        }
+    }
+    
+    fun refreshMedia(includeVideos: Boolean = true) {
+        loadMedia(includeVideos)
+    }
+    
+    private fun applyFilters() {
+        var filtered = _allMedia.value
+        
+        // Apply search query
+        val query = _searchQuery.value.trim().lowercase()
+        if (query.isNotEmpty()) {
+            filtered = filtered.filter { 
+                it.displayName.lowercase().contains(query) ||
+                it.bucketName.lowercase().contains(query)
             }
         }
         
-        return photoList
-    }
-    
-    private fun applyFiltersAndSort() {
-        var filtered = _photos.value.toList()
-        
-        // Apply filters
-        val filters = _filterOptions.value
-        if (filters.favoritesOnly) {
-            filtered = filtered.filter { _favorites.value.contains(it.id) }
+        // Apply media type filter
+        filtered = when (_filterOptions.value.mediaType) {
+            MediaType.IMAGES -> filtered.filter { it.isImage }
+            MediaType.VIDEOS -> filtered.filter { it.isVideo }
+            MediaType.GIFS -> filtered.filter { it.mimeType.equals("image/gif", ignoreCase = true) }
+            MediaType.ALL -> filtered
         }
         
-        if (filters.minSize > 0) {
-            filtered = filtered.filter { it.size >= filters.minSize }
+        // Apply favorites filter
+        if (_filterOptions.value.favoritesOnly) {
+            filtered = filtered.filter { it.isFavorite }
         }
         
-        filters.dateRange?.let { (start, end) ->
+        // Filter out hidden media
+        filtered = filtered.filter { !it.isHidden }
+        
+        // Apply minimum size filter
+        if (_filterOptions.value.minSize > 0) {
+            filtered = filtered.filter { it.size >= _filterOptions.value.minSize }
+        }
+        
+        // Apply date range filter
+        _filterOptions.value.dateRange?.let { (start, end) ->
             filtered = filtered.filter { it.dateAdded in start..end }
         }
         
-        // Apply search
-        val query = _searchQuery.value.lowercase().trim()
-        if (query.isNotEmpty()) {
-            filtered = filtered.filter { 
-                it.displayName.lowercase().contains(query) 
-            }
-        }
-        
         // Apply sorting
-        filtered = when (_sortOption.value) {
+        filtered = when (_filterOptions.value.sortBy) {
             SortOption.DATE_DESC -> filtered.sortedByDescending { it.dateAdded }
             SortOption.DATE_ASC -> filtered.sortedBy { it.dateAdded }
             SortOption.NAME_ASC -> filtered.sortedBy { it.displayName.lowercase() }
@@ -263,62 +175,105 @@ class GalleryViewModel : ViewModel() {
             SortOption.SIZE_ASC -> filtered.sortedBy { it.size }
         }
         
-        _filteredPhotos.value = filtered
-    }
-    
-    fun toggleSelection(photoId: Long) {
-        val currentSelection = _selectedPhotos.value.toMutableSet()
-        if (currentSelection.contains(photoId)) {
-            currentSelection.remove(photoId)
-        } else {
-            currentSelection.add(photoId)
-        }
-        _selectedPhotos.value = currentSelection
-    }
-    
-    fun selectAll() {
-        _selectedPhotos.value = _filteredPhotos.value.map { it.id }.toSet()
-    }
-    
-    fun clearSelection() {
-        _selectedPhotos.value = emptySet()
-    }
-    
-    fun isSelected(photoId: Long): Boolean {
-        return _selectedPhotos.value.contains(photoId)
-    }
-    
-    fun toggleFavorite(photoId: Long) {
-        val currentFavorites = _favorites.value.toMutableSet()
-        if (currentFavorites.contains(photoId)) {
-            currentFavorites.remove(photoId)
-        } else {
-            currentFavorites.add(photoId)
-        }
-        _favorites.value = currentFavorites
-    }
-    
-    fun isFavorite(photoId: Long): Boolean {
-        return _favorites.value.contains(photoId)
-    }
-    
-    fun setSortOption(option: SortOption) {
-        _sortOption.value = option
-    }
-    
-    fun setViewMode(mode: ViewMode) {
-        _viewMode.value = mode
-    }
-    
-    fun updateFilterOptions(filters: FilterOptions) {
-        _filterOptions.value = filters
+        _filteredMedia.value = filtered
     }
     
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }
     
-    fun refreshPhotos(context: Context) {
-        loadPhotos(context, loadMore = false)
+    fun updateFilterOptions(options: FilterOptions) {
+        _filterOptions.value = options
+    }
+    
+    fun setMediaType(type: MediaType) {
+        _filterOptions.value = _filterOptions.value.copy(mediaType = type)
+    }
+    
+    fun toggleFavoritesOnly() {
+        _filterOptions.value = _filterOptions.value.copy(
+            favoritesOnly = !_filterOptions.value.favoritesOnly
+        )
+    }
+    
+    fun setSortOption(option: SortOption) {
+        _filterOptions.value = _filterOptions.value.copy(sortBy = option)
+    }
+    
+    fun setViewMode(mode: ViewMode) {
+        _filterOptions.value = _filterOptions.value.copy(viewMode = mode)
+    }
+    
+    // Selection management
+    fun toggleSelection(mediaId: Long) {
+        val currentSelection = _selectedMedia.value.toMutableSet()
+        if (currentSelection.contains(mediaId)) {
+            currentSelection.remove(mediaId)
+        } else {
+            currentSelection.add(mediaId)
+        }
+        _selectedMedia.value = currentSelection
+        _isSelectionMode.value = currentSelection.isNotEmpty()
+    }
+    
+    fun selectAll() {
+        _selectedMedia.value = _filteredMedia.value.map { it.id }.toSet()
+        _isSelectionMode.value = true
+    }
+    
+    fun clearSelection() {
+        _selectedMedia.value = emptySet()
+        _isSelectionMode.value = false
+    }
+    
+    fun isSelected(mediaId: Long): Boolean {
+        return _selectedMedia.value.contains(mediaId)
+    }
+    
+    fun getSelectedItems(): List<MediaItem> {
+        return _filteredMedia.value.filter { it.id in _selectedMedia.value }
+    }
+    
+    // Favorites management
+    fun toggleFavorite(mediaId: Long) {
+        repository.toggleFavorite(mediaId)
+    }
+    
+    fun isFavorite(mediaId: Long): Boolean {
+        return repository.isFavorite(mediaId)
+    }
+    
+    fun getFavorites(): List<MediaItem> {
+        return repository.getFavoritesList()
+    }
+    
+    // Hide/Unhide media
+    fun hideMedia(mediaId: Long) {
+        repository.hideMedia(mediaId)
+    }
+    
+    fun unhideMedia(mediaId: Long) {
+        repository.unhideMedia(mediaId)
+    }
+    
+    // Delete operations
+    suspend fun deleteMedia(context: Context, mediaItems: List<MediaItem>) {
+        repository.deleteMedia(context, mediaItems)
+        clearSelection()
+    }
+    
+    suspend fun deleteSelectedMedia(context: Context) {
+        val selectedItems = getSelectedItems()
+        deleteMedia(context, selectedItems)
+    }
+    
+    // Stats
+    fun getStats(): com.pixavault.app.domain.model.GalleryStats {
+        return repository.getStats()
+    }
+    
+    // Search
+    suspend fun search(query: String): List<MediaItem> {
+        return repository.searchMedia(query)
     }
 }
