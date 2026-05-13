@@ -257,8 +257,7 @@ fun PhotoDetailDialog(
                 ) {
                     Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter),
+                            .fillMaxWidth(),
                         color = Color.Black.copy(alpha = 0.7)
                     ) {
                         Column(

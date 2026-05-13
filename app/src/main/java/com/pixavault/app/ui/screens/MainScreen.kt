@@ -302,9 +302,10 @@ fun PhotosContent(
             LoadingScreen()
         }
         is LoadingState.Error -> {
+            val context = LocalContext.current
             ErrorScreen(
                 message = loadingState.message,
-                onRetry = { viewModel.refreshPhotos(LocalContext.current) }
+                onRetry = { viewModel.refreshPhotos(context) }
             )
         }
         else -> {
